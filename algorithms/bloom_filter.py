@@ -1,25 +1,12 @@
+# Not have been checked. 
+
 import math
 
 from utils.hash_functions import fnv1a64, djb2_64
 
-
-# ============================================================
-# 4. BLOOM FILTER
-# ============================================================
-
 class BloomFilter:
-    """
-    Bloom filter implemented using a manually managed
-    bit vector.
 
-    No Bloom-filter library is used.
-    """
-
-    def __init__(
-        self,
-        expected_items,
-        false_positive_rate=0.01
-    ):
+    def __init__(self, expected_items, false_positive_rate=0.01):
 
         if expected_items <= 0:
             raise ValueError(
@@ -66,13 +53,6 @@ class BloomFilter:
 
 
     def _positions(self, key):
-        """
-        Generate k Bloom-filter bit positions.
-
-        Double hashing is used:
-
-        position_i = h1 + i*h2 mod m
-        """
 
         h1 = fnv1a64(
             key,
@@ -92,16 +72,6 @@ class BloomFilter:
 
 
     def add(self, key):
-        """
-        Input:
-            key: username
-
-        Output:
-            None
-
-        Description:
-            Sets k bits in the Bloom-filter bit array.
-        """
 
         for position in self._positions(key):
 
@@ -114,14 +84,6 @@ class BloomFilter:
 
 
     def contains(self, key):
-        """
-        Input:
-            key: username
-
-        Output:
-            False -> definitely absent
-            True  -> possibly present
-        """
 
         for position in self._positions(key):
 

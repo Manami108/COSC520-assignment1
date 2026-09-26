@@ -1,3 +1,5 @@
+# not have been chekced. 
+
 import math
 import random
 
