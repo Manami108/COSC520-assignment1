@@ -134,10 +134,7 @@ def build_structures(
     table = HashTable(n)
 
 
-    bloom = BloomFilter(
-        n,
-        false_positive_rate=0.01
-    )
+    bloom = BloomFilter(n)
 
 
     cuckoo = CuckooFilter(

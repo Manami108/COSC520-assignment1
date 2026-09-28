@@ -1,99 +1,70 @@
-# Not have been checked. 
-
 import math
-
-from utils.hash_functions import fnv1a64, djb2_64
 
 class BloomFilter:
 
-    def __init__(self, expected_items, false_positive_rate=0.01):
-
-        if expected_items <= 0:
-            raise ValueError(
-                "expected_items must be positive"
-            )
-
-        if not 0 < false_positive_rate < 1:
-            raise ValueError(
-                "false_positive_rate must be between 0 and 1"
-            )
-
-        n = expected_items
-        p = false_positive_rate
-
-        # Standard Bloom-filter formula:
-        #
+    def __init__(self, expected_items):
+        # Number of bits:
         # m = -n ln(p) / (ln 2)^2
+        n = expected_items
+        p = 0.01
 
-        self.m = max(
-            8,
-            math.ceil(
-                -n
-                * math.log(p)
-                / (math.log(2) ** 2)
-            )
+        self.size = math.ceil(
+            -n * math.log(p)
+            / (math.log(2) ** 2)
         )
 
-        # Optimal approximate number of hashes:
-        #
-        # k = (m/n) ln 2
-
-        self.k = max(
-            1,
-            round(
-                (self.m / n)
-                * math.log(2)
-            )
+        # Number of hash functions:
+        # k = (m / n) ln 2
+        self.hash_count = round(
+            (self.size / n)
+            * math.log(2)
         )
 
-        # Raw bit storage.
-        self.bits = bytearray(
-            (self.m + 7) // 8
-        )
+        # Initially every bit is 0.
+        self.bit_array = [0] * self.size
 
 
-    def _positions(self, key):
-
-        h1 = fnv1a64(
-            key,
-            0xA5A5A5A5
-        )
-
-        h2 = djb2_64(
-            key,
-            0x9E3779B9
-        ) | 1
-
-        for i in range(self.k):
-
-            yield (
-                h1 + i * h2
-            ) % self.m
+    def hash_function(self, key, seed):
+        hash_value = seed
+        
+        for char in key:
+            hash_value = (
+                hash_value * 31
+                + ord(char)
+            ) % self.size
+        return hash_value
 
 
     def add(self, key):
-
-        for position in self._positions(key):
-
-            byte_index = position >> 3
-            bit_index = position & 7
-
-            self.bits[byte_index] |= (
-                1 << bit_index
+        for i in range(self.hash_count):
+            position = self.hash_function(
+                key,
+                i + 1
             )
-
+            self.bit_array[position] = 1
+            
 
     def contains(self, key):
-
-        for position in self._positions(key):
-
-            byte_index = position >> 3
-            bit_index = position & 7
-
-            if not (
-                self.bits[byte_index]
-                & (1 << bit_index)
-            ):
+        for i in range(self.hash_count):
+            position = self.hash_function(
+                key,
+                i + 1
+            )
+            if self.bit_array[position] == 0:
                 return False
-
         return True
+    
+ # Test
+bloom = BloomFilter(10)
+
+bloom.add("Arshida")
+bloom.add("Mansi")
+bloom.add("Manami")
+
+x = "John"
+result = bloom.contains(x)
+
+if result:
+    print("Element may be present in the Bloom filter")
+else:
+    print("Element is not present in the Bloom filter")   
