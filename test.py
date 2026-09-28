@@ -1,12 +1,10 @@
 import unittest
 
-from main import (
-    BloomFilter,
-    CuckooFilter,
-    HashTable,
-    binary_search,
-    linear_search,
-)
+from algorithms.linear_search import linear_search
+from algorithms.binary_search import binary_search
+from algorithms.hash_table import HashTable
+from algorithms.bloom_filter import BloomFilter
+from algorithms.cuckoo_filter import CuckooFilter
 
 
 class LoginCheckerTests(unittest.TestCase):
