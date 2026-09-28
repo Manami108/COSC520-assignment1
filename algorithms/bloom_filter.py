@@ -55,16 +55,16 @@ class BloomFilter:
         return True
     
  # Test
-bloom = BloomFilter(10)
+# bloom = BloomFilter(10)
 
-bloom.add("Arshida")
-bloom.add("Mansi")
-bloom.add("Manami")
+# bloom.add("Arshida")
+# bloom.add("Mansi")
+# bloom.add("Manami")
 
-x = "John"
-result = bloom.contains(x)
+# x = "John"
+# result = bloom.contains(x)
 
-if result:
-    print("Element may be present in the Bloom filter")
-else:
-    print("Element is not present in the Bloom filter")   
+# if result:
+#     print("Element may be present in the Bloom filter")
+# else:
+#     print("Element is not present in the Bloom filter")   
