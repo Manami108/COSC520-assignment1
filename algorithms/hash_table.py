@@ -1,32 +1,42 @@
-class HashTable:
-    def __init__(self, capacity):
-        self.capacity = capacity
-        self.slots = [None] * capacity
-        self.size = 0
+# Still discussing the methodology. maybe FNV-1a etc. can be used. 
 
-    def _hash(self, key):
+class HashTable:
+
+    def __init__(self, expected_items, max_load=0.7):
+        self.capacity = int(expected_items / max_load) + 1
+        self.table = [None] * self.capacity
+        self.count = 0
+
+    def hash_function(self, key):
         hash_value = 0
 
         for char in key:
             hash_value = (
-                hash_value * 31 + ord(char)
+                hash_value * 31
+                + ord(char)
             ) % self.capacity
 
         return hash_value
 
+
     def insert(self, key):
-        index = self._hash(key)
+        index = self.hash_function(key)
 
         for _ in range(self.capacity):
 
-            if self.slots[index] is None:
-                self.slots[index] = key
-                self.size += 1
+            if self.table[index] is None:
+
+                self.table[index] = key
+                self.count += 1
+
                 return True
 
-            if self.slots[index] == key:
+            if self.table[index] == key:
+
                 return False
 
+            # Collision:
+            # move to the next position.
             index = (
                 index + 1
             ) % self.capacity
@@ -35,15 +45,19 @@ class HashTable:
             "Hash table is full."
         )
 
+
     def contains(self, key):
-        index = self._hash(key)
+        index = self.hash_function(key)
 
         for _ in range(self.capacity):
 
-            if self.slots[index] is None:
+            # Empty position means the key was never inserted.
+            if self.table[index] is None:
+
                 return False
 
-            if self.slots[index] == key:
+            if self.table[index] == key:
+
                 return True
 
             index = (
@@ -66,8 +80,6 @@ class HashTable:
 #     print("Element is present in the hash table")
 # else:
 #     print("Element is not present in the hash table")
-
-
 
 
 '''previous method of hash table implementation.'''
