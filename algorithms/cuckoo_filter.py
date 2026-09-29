@@ -1,6 +1,7 @@
 # Still needs to be checked.
 
 import math
+from operator import index
 import random
 
 class CuckooFilter:
@@ -18,13 +19,20 @@ class CuckooFilter:
         self.max_kicks = max_kicks
 
         # Keep the filter around 90% full at most.
-        self.num_buckets = max(
-            2,
-            math.ceil(
-                expected_items
-                / (bucket_size * 0.90)
-            )
+        needed_buckets = math.ceil(
+            expected_items
+            / (bucket_size * 0.90)
         )
+
+        self.num_buckets = 1
+
+        while self.num_buckets < max(
+            2,
+            needed_buckets
+        ):
+            self.num_buckets *= 2
+
+        self.mask = self.num_buckets - 1
 
         # Each bucket is simply a list of fingerprints.
         self.buckets = [
@@ -56,23 +64,28 @@ class CuckooFilter:
     def _index1(self, key):
         return (
             self._hash(key, 2)
-            % self.num_buckets
+            & self.mask
         )
 
 
     def _index2(
         self,
-        index1,
+        index,
         fingerprint
     ):
 
-        return (
-            index1
-            ^ self._hash(
+        fingerprint_hash = (
+            self._hash(
                 fingerprint,
                 3
             )
-        ) % self.num_buckets
+            & self.mask
+        )
+
+        return (
+            index
+                ^ fingerprint_hash
+        )
 
 
     def contains(self, key):
