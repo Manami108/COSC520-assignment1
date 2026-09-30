@@ -1,4 +1,7 @@
+# Completed 
+
 def binary_search(values, target):
+    """Return whether target occurs in an ascending sorted sequence."""
     low = 0
     high = len(values)-1
 
@@ -14,14 +17,3 @@ def binary_search(values, target):
             high = mid-1
 
     return False
-
-# Test
-# mylist = ["Mansi", "Arshida", "Manami"]       
-# x = "Manami"
-# result = binary_search(mylist, x)
-
-# if result:
-#     print("Element is present in the list")
-# else:
-#     print("Element is not present in the list")
-    

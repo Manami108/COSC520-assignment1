@@ -1,9 +1,12 @@
 def make_dataset(n):
+    if n < 0:
+        raise ValueError("n must be nonnegative")
+
     return [
         f"user_{i:012d}"
         for i in range(n)
     ]
-
+    
 def save_dataset(
     values,
     path="usernames_dataset.txt"
@@ -15,7 +18,4 @@ def save_dataset(
     ) as file:
 
         for value in values:
-
-            file.write(
-                value + "\n"
-            )
+            file.write(value + "\n")
