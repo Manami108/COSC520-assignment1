@@ -1,6 +1,7 @@
+# Input: a sorted list of values and a target value to search for
+# Output: True if the target is found in the list, False otherwise  
 # This function starts by checking the list from the middle. 
 # Depending on whether the target is smaller or larger, it continues searching in only one half of the remaining elements. 
-# It returns True if the target is found and False if it is not.
 
 def binary_search(values, target):
     low = 0
