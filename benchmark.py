@@ -8,542 +8,177 @@ from algorithms.binary_search import binary_search
 from algorithms.hash_table import HashTable
 from algorithms.bloom_filter import BloomFilter
 from algorithms.cuckoo_filter import CuckooFilter
-
 from dataset import make_dataset, save_dataset
 
+TARGET_FPR = 0.01
+FPR_QUERIES = 100_000
 
-# ============================================================
-# BENCHMARK QUERIES
-# ============================================================
-
-def make_queries(
-    n,
-    count=100,
-    seed=123
-):
-    """
-    Create a query set containing:
-
-        50% existing usernames
-        50% nonexistent usernames
-    """
+def make_queries(n, count, seed=123):
+    if n <= 0:
+        raise ValueError("n must be positive")
+    if count <= 0:
+        raise ValueError("count must be positive")
 
     rng = random.Random(seed)
-
     half = count // 2
 
-
     present = [
-
         f"user_{rng.randrange(n):012d}"
-
         for _ in range(half)
-
     ]
-
 
     absent = [
-
-        f"user_{n + i + 1:012d}"
-
-        for i in range(
-            count - half
-        )
-
+        f"user_{n + i:012d}"
+        for i in range(count - half)
     ]
 
-
-    queries = (
-        present
-        + absent
-    )
-
-
+    queries = present + absent
     rng.shuffle(queries)
-
     return queries
 
 
-def median_time_per_query(
-    search_function,
-    queries,
-    repeats=3
-):
-    """
-    Measure lookup time several times.
-
-    Output:
-        median microseconds per query
-    """
-
+def median_time_per_query(search_function, queries, repeats):
+    if not queries:
+        raise ValueError("queries must not be empty")
+    if repeats <= 0:
+        raise ValueError("repeats must be positive")
+    
     samples = []
-
-
     for _ in range(repeats):
-
-        start = (
-            time.perf_counter()
-        )
-
-
+        start = time.perf_counter()
         for query in queries:
+            search_function(query)
+        elapsed = time.perf_counter() - start
+        samples.append(elapsed / len(queries))
 
-            search_function(
-                query
-            )
+    return (statistics.median(samples) * 1_000_000)
 
-
-        elapsed = (
-            time.perf_counter()
-            - start
-        )
-
-
-        samples.append(
-            elapsed
-            / len(queries)
-        )
-
-
-    return (
-        statistics.median(
-            samples
-        )
-        * 1_000_000
-    )
-
-
-# ============================================================
-# BUILD ADVANCED STRUCTURES
-# ============================================================
-
-def build_structures(
-    usernames
-):
-    """
-    Build:
-
-        Hash table
-        Bloom filter
-        Cuckoo filter
-    """
-
+def build_structures(usernames):
     n = len(usernames)
-
-
     table = HashTable(n)
-
-
-    bloom = BloomFilter(n)
-
-
-    cuckoo = CuckooFilter(
-        n,
-        fingerprint_bits=16
-    )
-
+    bloom = BloomFilter(n, target_fpr=TARGET_FPR)
+    cuckoo = CuckooFilter(n, target_fpr=TARGET_FPR)
 
     for username in usernames:
-
-        table.insert(
-            username
-        )
-
-        bloom.add(
-            username
-        )
-
-
-        if not cuckoo.insert(
-            username
-        ):
-
+        table.insert(username)
+        bloom.add(username)
+        if not cuckoo.insert(username):
             raise RuntimeError(
                 "Cuckoo insertion failed. "
-                "Use a lower target_load "
-                "or increase table size."
+                "Try a lower target_load."
             )
+    return table, bloom, cuckoo
 
 
-    return (
-        table,
-        bloom,
-        cuckoo
-    )
+def measure_filter_accuracy(structure,usernames,count=FPR_QUERIES):
+    n = len(usernames)
+    false_positives = 0
+    for i in range(count):
+        query = f"user_{n + i:012d}"
+        if structure.contains(query):
+            false_positives += 1
+    false_positive_rate = (false_positives / count)
+    false_negatives = sum(not structure.contains(username)
+        for username in usernames)
+    return false_positive_rate, false_negatives
 
-
-# ============================================================
-# PLOT RESULTS
-# ============================================================
 
 def plot_results(rows):
-    """
-    Create lookup_runtime.png.
-
-    Uses logarithmic axes because n and the running times
-    can differ by several orders of magnitude.
-    """
-
     import matplotlib.pyplot as plt
 
-
-    methods = [
-
-        "Linear",
-        "Binary",
-        "Hash",
-        "Bloom",
-        "Cuckoo"
-
-    ]
-
+    methods = ["Linear", "Binary", "Hash", "Bloom", "Cuckoo"]
+    plt.figure(figsize=(8, 5))
 
     for method in methods:
-
-        points = sorted(
-
-            (
-                n,
-                us
-            )
-
-            for n, name, us
-            in rows
-
-            if name == method
-
-        )
-
-
-        plt.plot(
-
-            [
-                n
-                for n, _
-                in points
-            ],
-
-            [
-                us
-                for _, us
-                in points
-            ],
-
-            marker="o",
-
-            label=method
-
-        )
-
+        points = sorted((n, runtime) for n, name, runtime in rows if name == method)
+        x_values = [n for n, _ in points]
+        y_values = [runtime for _, runtime in points]
+        plt.plot(x_values, y_values, label=method)
 
     plt.xscale("log")
-
     plt.yscale("log")
-
-
-    plt.xlabel(
-        "Number of stored logins, n"
-    )
-
-    plt.ylabel(
-        "Median lookup time "
-        "(microseconds/query)"
-    )
-
-    plt.title(
-        "Login Checker "
-        "Lookup-Time Comparison"
-    )
-
-
+    plt.xlabel("Number of stored logins, n")
+    plt.ylabel("Median lookup time (microseconds/query)")
+    plt.title("Login Checker Lookup-Time Comparison")
     plt.legend()
-
-
-    plt.grid(
-        True,
-        which="both",
-        linestyle="--",
-        linewidth=0.5
-    )
-
-
     plt.tight_layout()
-
-
-    plt.savefig(
-        "lookup_runtime.png",
-        dpi=200
-    )
-
-
+    plt.savefig("lookup_runtime.png", dpi=200)
     plt.close()
 
 
-# ============================================================
-# FULL BENCHMARK
-# ============================================================
+def benchmark(sizes, query_count=1000, repeats=5):
+    if not sizes:
+        raise ValueError("sizes must not be empty")
+    if any(n <= 0 for n in sizes):
+        raise ValueError("all dataset sizes must be positive")
+    if query_count <= 0:
+        raise ValueError("query_count must be positive")
+    if repeats <= 0:
+        raise ValueError("repeats must be positive")
 
-def benchmark(
-    sizes,
-    query_count=100,
-    repeats=3
-):
-    """
-    Compare all five methods.
-
-    Outputs:
-        usernames_dataset.txt
-        benchmark_results.csv
-        lookup_runtime.png
-    """
-
-    rows = []
-
-
-    largest_dataset = (
-        make_dataset(
-            max(sizes)
-        )
-    )
-
-
-    save_dataset(
-        largest_dataset
-    )
-
+    runtime_rows = []
+    fpr_rows = []
+    largest_dataset = make_dataset(max(sizes))
+    save_dataset(largest_dataset)
 
     for n in sizes:
-
-        print(
-            f"\nTesting n={n:,}"
-        )
-
-
-        usernames = (
-            largest_dataset[:n]
-        )
-
-
-        queries = make_queries(
-            n,
-            query_count
-        )
-
-
-        table, bloom, cuckoo = (
-            build_structures(
-                usernames
-            )
-        )
-
+        print(f"\nTesting n={n:,}")
+        usernames = (largest_dataset[:n])
+        queries = make_queries(n, query_count)
+        (table, bloom, cuckoo) = build_structures(usernames)
 
         methods = [
-
-            (
-                "Linear",
-
-                lambda q,
-                a=usernames:
-                linear_search(
-                    a,
-                    q
-                )
-            ),
-
-            (
-                "Binary",
-
-                lambda q,
-                a=usernames:
-                binary_search(
-                    a,
-                    q
-                )
-            ),
-
-            (
-                "Hash",
-                table.contains
-            ),
-
-            (
-                "Bloom",
-                bloom.contains
-            ),
-
-            (
-                "Cuckoo",
-                cuckoo.contains
-            )
-
+            ("Linear", lambda q: linear_search(usernames,q)),
+            ("Binary", lambda q: binary_search(usernames,q)),
+            ("Hash", lambda q: table.contains(q)),
+            ("Bloom", lambda q: bloom.contains(q)),
+            ("Cuckoo", lambda q: cuckoo.contains(q))
         ]
 
+        for (name, search_function) in methods:
+            runtime = (median_time_per_query(search_function, queries, repeats))
+            runtime_rows.append((n, name, runtime))
 
-        for (
-            name,
-            search_function
-        ) in methods:
+            print(f"{name:>7}: " f"{runtime:.3f} " "microseconds/query")
 
-            us = (
-                median_time_per_query(
-                    search_function,
-                    queries,
-                    repeats
-                )
-            )
-
-
-            rows.append(
-                (
-                    n,
-                    name,
-                    us
-                )
-            )
-
+        for (name,structure) in [("Bloom", bloom), ("Cuckoo", cuckoo)]:
+            (fpr, false_negatives) = measure_filter_accuracy(structure, usernames,)
+            fpr_rows.append((n, name, TARGET_FPR, fpr, false_negatives))
 
             print(
                 f"{name:>7}: "
-                f"{us:10.3f} "
-                "us/query"
+                f"target FPR={TARGET_FPR:.2%}, "
+                f"measured FPR={fpr:.4%}, "
+                f"false negatives={false_negatives}"
             )
 
-
-        # --------------------------------------------
-        # FALSE-POSITIVE EXPERIMENT
-        # --------------------------------------------
-
-        absent = [
-
-            f"not_present_{i:012d}"
-
-            for i in range(5000)
-
-        ]
-
-
-        bloom_fp = (
-
-            sum(
-                bloom.contains(q)
-                for q in absent
-            )
-
-            / len(absent)
-
-        )
-
-
-        cuckoo_fp = (
-
-            sum(
-                cuckoo.contains(q)
-                for q in absent
-            )
-
-            / len(absent)
-
-        )
-
-
-        print(
-            "Bloom false-positive rate:  "
-            f"{bloom_fp:.4%}"
-        )
-
-
-        print(
-            "Cuckoo false-positive rate: "
-            f"{cuckoo_fp:.4%}"
-        )
-
-
-    # --------------------------------------------
-    # SAVE CSV RESULTS
-    # --------------------------------------------
-
-    with open(
-        "benchmark_results.csv",
-        "w",
-        newline="",
-        encoding="utf-8"
-    ) as file:
-
+    # Save runtime results.
+    with open("benchmark_results.csv", "w", newline="", encoding="utf-8") as file:
         writer = csv.writer(file)
+        writer.writerow(["n", "method", "microseconds_per_query"])
+        writer.writerows(runtime_rows)
 
-
+    # Save probabilistic-filter results.
+    with open("fpr_results.csv", "w", newline="", encoding="utf-8") as file:
+        writer = csv.writer(file)
         writer.writerow(
             [
                 "n",
                 "method",
-                "microseconds_per_query"
+                "target_false_positive_rate",
+                "measured_false_positive_rate",
+                "false_negatives"
             ]
         )
+        writer.writerows(fpr_rows)
+    plot_results(runtime_rows)
 
-
-        writer.writerows(
-            rows
-        )
-
-
-    # --------------------------------------------
-    # CREATE GRAPH
-    # --------------------------------------------
-
-    plot_results(rows)
-
-
-    print(
-        "\nCreated:"
-    )
-
-    print(
-        "  usernames_dataset.txt"
-    )
-
-    print(
-        "  benchmark_results.csv"
-    )
-
-    print(
-        "  lookup_runtime.png"
-    )
-
-
-# ============================================================
-# MAIN
-# ============================================================
+    print("\nCreated:")
+    print("usernames_dataset.txt")
+    print("benchmark_results.csv")
+    print("fpr_results.csv")
+    print("lookup_runtime.png")
 
 if __name__ == "__main__":
-
-    # Start with these values.
-    #
-    # Increase them if your computer has enough
-    # memory and the experiment finishes reasonably.
-
-    SIZES = [
-
-        1_000,
-
-        5_000,
-
-        10_000,
-
-        50_000,
-
-        100_000,
-
-        200_000
-
-    ]
-
-
-    benchmark(
-
-        SIZES,
-
-        query_count=100,
-
-        repeats=3
-
-    )
+    SIZES = [1_000, 5_000, 10_000, 50_000, 100_000, 200_000, 500_000, 1_000_000, 2_000_000, 5_000_000, 10_000_000]
+    benchmark(SIZES)

@@ -1,3 +1,4 @@
+# Completed
 import unittest
 
 from algorithms.linear_search import linear_search
@@ -5,163 +6,69 @@ from algorithms.binary_search import binary_search
 from algorithms.hash_table import HashTable
 from algorithms.bloom_filter import BloomFilter
 from algorithms.cuckoo_filter import CuckooFilter
+from dataset import make_dataset
 
-
-class LoginCheckerTests(unittest.TestCase):
-
-    def setUp(self):
-
-        self.values = [
-            "alice",
-            "bob",
-            "charlie",
-            "diana",
-        ]
-
-        self.sorted_values = sorted(
-            self.values
-        )
-
-
+class TestLinearSearch(unittest.TestCase):
     def test_linear_search(self):
+        values = make_dataset(10)
+        self.assertTrue(linear_search(values, "user_000000000006"))
+        self.assertFalse(linear_search(values, "user_000000000028"))
 
-        self.assertTrue(
-            linear_search(
-                self.values,
-                "bob",
-            )
-        )
-
-        self.assertFalse(
-            linear_search(
-                self.values,
-                "zoe",
-            )
-        )
-
-
+class TestBinarySearch(unittest.TestCase):
     def test_binary_search(self):
+        values = make_dataset(10)
+        self.assertTrue(binary_search(values, "user_000000000006"))
+        self.assertFalse(binary_search(values, "user_000000000028"))
 
-        self.assertTrue(
-            binary_search(
-                self.sorted_values,
-                "charlie",
-            )
-        )
+class TestHashTable(unittest.TestCase):
+    def test_insert_and_search(self):
+        values = make_dataset(10)
+        table = HashTable(len(values))
+        for value in values:
+            table.insert(value)
+        self.assertTrue(table.contains("user_000000000006"))
+        self.assertFalse(table.contains("user_000000000028"))
 
-        self.assertFalse(
-            binary_search(
-                self.sorted_values,
-                "zoe",
-            )
-        )
-
-
-    def test_hash_table(self):
-
-        table = HashTable(
-            len(self.values)
-        )
-
-        for value in self.values:
-
-            self.assertTrue(
-                table.insert(value)
-            )
-
-
-        for value in self.values:
-
-            self.assertTrue(
-                table.contains(value)
-            )
+    def test_collision(self):
+        table = HashTable(3)
+        first = "user_000000000000"
+        second = "user_000000000005"
+        table.insert(first)
+        table.insert(second)
+        self.assertTrue(table.contains(first))
+        self.assertTrue(table.contains(second))
+    
+    def test_duplicate_insert(self):
+        table = HashTable(10)
+        key = "user_000000000001"
+        self.assertTrue(table.insert(key))
+        self.assertFalse(table.insert(key))
 
 
-        self.assertFalse(
-            table.contains("zoe")
-        )
-
-
-        # Duplicate should not be inserted.
-        self.assertFalse(
-            table.insert("alice")
-        )
-
-
-    def test_bloom_filter_has_no_false_negatives_for_inserted_items(
-        self
-    ):
-
-        bloom = BloomFilter(
-            len(self.values),
-            false_positive_rate=0.01,
-        )
-
-
-        for value in self.values:
-
+class TestBloomFilter(unittest.TestCase):
+    def test_inserted_items_are_found(self):
+        values = make_dataset(100)
+        bloom = BloomFilter(len(values))
+        for value in values:
             bloom.add(value)
+        for value in values:
+            self.assertTrue(bloom.contains(value))
+            
+class TestCuckooFilter(unittest.TestCase):
+    def test_inserted_items_are_found(self):
+        values = make_dataset(100)
+        cuckoo = CuckooFilter(len(values))
+        for value in values:
+            self.assertTrue(cuckoo.insert(value))
+        for value in values:
+            self.assertTrue(cuckoo.contains(value))
 
-
-        for value in self.values:
-
-            self.assertTrue(
-                bloom.contains(value)
-            )
-
-
-    def test_cuckoo_filter_has_no_false_negatives_for_inserted_items(
-        self
-    ):
-
-        cuckoo = CuckooFilter(
-            len(self.values),
-            fingerprint_bits=16,
-        )
-
-
-        for value in self.values:
-
-            self.assertTrue(
-                cuckoo.insert(value)
-            )
-
-
-        for value in self.values:
-
-            self.assertTrue(
-                cuckoo.contains(value)
-            )
-
-
-    def test_cuckoo_delete(self):
-
-        cuckoo = CuckooFilter(
-            10,
-            fingerprint_bits=24,
-        )
-
-
-        self.assertTrue(
-            cuckoo.insert("alice")
-        )
-
-
-        self.assertTrue(
-            cuckoo.contains("alice")
-        )
-
-
-        self.assertTrue(
-            cuckoo.delete("alice")
-        )
-
-
-        self.assertFalse(
-            cuckoo.contains("alice")
-        )
-
+class TestDataset(unittest.TestCase):
+    def test_dataset(self):
+        dataset = make_dataset(100)
+        self.assertEqual(len(dataset), 100)
+        self.assertEqual(dataset, sorted(dataset))
+        self.assertEqual(len(dataset), len(set(dataset)))
 
 if __name__ == "__main__":
-
     unittest.main()

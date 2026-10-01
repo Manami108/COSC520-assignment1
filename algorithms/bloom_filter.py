@@ -1,70 +1,34 @@
+# Completed 
 import math
+from utils.hash_functions import fnv1a64, djb2_64, mix64
 
 class BloomFilter:
 
-    def __init__(self, expected_items):
-        # Number of bits:
-        # m = -n ln(p) / (ln 2)^2
+    def __init__(self, expected_items, target_fpr=0.01):
+        if expected_items <= 0:
+            raise ValueError("expected_items must be positive")
+        if not 0 < target_fpr < 1:
+            raise ValueError("target_fpr must be between 0 and 1")
+
         n = expected_items
-        p = 0.01
+        self.size = math.ceil(-(n * math.log(target_fpr)) / (math.log(2) ** 2))
+        self.hash_count = max(1, round((self.size / n) * math.log(2)))
+ 
+        self.bit_array = bytearray((self.size + 7) // 8)
 
-        self.size = math.ceil(
-            -n * math.log(p)
-            / (math.log(2) ** 2)
-        )
-
-        # Number of hash functions:
-        # k = (m / n) ln 2
-        self.hash_count = round(
-            (self.size / n)
-            * math.log(2)
-        )
-
-        # Initially every bit is 0.
-        self.bit_array = [0] * self.size
-
-
-    def hash_function(self, key, seed):
-        hash_value = seed
+    def _hashes(self, key):
+        h1 = mix64(fnv1a64(key))
+        h2 = mix64(djb2_64(key)) | 1
         
-        for char in key:
-            hash_value = (
-                hash_value * 31
-                + ord(char)
-            ) % self.size
-        return hash_value
-
-
-    def add(self, key):
         for i in range(self.hash_count):
-            position = self.hash_function(
-                key,
-                i + 1
-            )
-            self.bit_array[position] = 1
-            
+            yield (h1 + i * h2) % self.size
+ 
+    def add(self, key):
+        for position in self._hashes(key):
+            self.bit_array[position >> 3] |= 1 << (position & 7)
 
     def contains(self, key):
-        for i in range(self.hash_count):
-            position = self.hash_function(
-                key,
-                i + 1
-            )
-            if self.bit_array[position] == 0:
+        for position in self._hashes(key):
+            if not self.bit_array[position >> 3] & (1 << (position & 7)):
                 return False
         return True
-    
- # Test
-# bloom = BloomFilter(10)
-
-# bloom.add("Arshida")
-# bloom.add("Mansi")
-# bloom.add("Manami")
-
-# x = "John"
-# result = bloom.contains(x)
-
-# if result:
-#     print("Element may be present in the Bloom filter")
-# else:
-#     print("Element is not present in the Bloom filter")   

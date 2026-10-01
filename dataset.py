@@ -1,43 +1,14 @@
-# ============================================================
-# DATASET
-# ============================================================
+# Completed
 
 def make_dataset(n):
-    """
-    Input:
-        n: number of usernames
-
-    Output:
-        list containing n unique usernames
-
-    The fixed-width numbers make the list already sorted.
-    """
-
+    if n < 0:
+        raise ValueError("n must be nonnegative")
     return [
-        f"user_{i:012d}"
+        f"user_{i:012d}" 
         for i in range(n)
-    ]
-
-
-def save_dataset(
-    values,
-    path="usernames_dataset.txt"
-):
-    """
-    Save generated usernames to disk.
-
-    The generated file can later be uploaded and linked
-    in the assignment report.
-    """
-
-    with open(
-        path,
-        "w",
-        encoding="utf-8"
-    ) as file:
-
+        ]
+    
+def save_dataset(values, path="usernames_dataset.txt"):
+    with open(path, "w", encoding="utf-8") as file:
         for value in values:
-
-            file.write(
-                value + "\n"
-            )
+            file.write(value + "\n")

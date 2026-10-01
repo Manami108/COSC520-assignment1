@@ -1,187 +1,85 @@
-# Still needs to be checked.
-
+# Completed 
 import math
 import random
 
+from utils.hash_functions import fnv1a64, mix64
+
 class CuckooFilter:
-
-    def __init__(
-        self,
-        expected_items,
-        bucket_size=4,
-        fingerprint_bits=16,
-        max_kicks=500
-    ):
-
-        self.bucket_size = bucket_size
-        self.fingerprint_bits = fingerprint_bits
-        self.max_kicks = max_kicks
-
-        # Keep the filter around 90% full at most.
-        self.num_buckets = max(
-            2,
-            math.ceil(
-                expected_items
-                / (bucket_size * 0.90)
-            )
+    def __init__(self, expected_items, target_fpr=0.01, target_load=0.90):
+        if expected_items <= 0:
+            raise ValueError("expected_items must be positive")
+        if not 0 < target_fpr < 1:
+            raise ValueError("target_fpr must be between 0 and 1")
+        if not 0 < target_load < 1:
+            raise ValueError("target_load must be between 0 and 1")
+        
+        self.bucket_size = 4
+        self.max_kicks = 500
+        self.rng = random.Random(0)
+        self.fingerprint_bits = math.ceil(
+            math.log2((2 * self.bucket_size) / target_fpr))
+        
+        self.fingerprint_mask = (1 << self.fingerprint_bits) - 1
+    
+        needed_buckets = math.ceil(
+            expected_items
+            / (self.bucket_size * target_load)
         )
 
-        # Each bucket is simply a list of fingerprints.
+        self.num_buckets = 1
+        while self.num_buckets < max(2, needed_buckets):
+            self.num_buckets *= 2
+        self.mask = self.num_buckets - 1
         self.buckets = [
             []
             for _ in range(self.num_buckets)
         ]
 
+    def _locate(self, key):
+        h = mix64(fnv1a64(key))
 
-    def _hash(self, value, seed):
-        hash_value = seed
+        fingerprint = ((h >> 32) & self.fingerprint_mask)
 
-        for char in str(value):
+        index1 = h & self.mask
+        index2 = self._alt_index(index1, fingerprint)
+        return fingerprint, index1, index2
 
-            hash_value = (
-                hash_value * 31
-                + ord(char)
-            )
+    def _alt_index(self, index, fingerprint):
+        offset = mix64(fingerprint) & self.mask
 
-        return hash_value
-
-
-    def _fingerprint(self, key):
-        return (
-            self._hash(key, 1)
-            % (2 ** self.fingerprint_bits)
-        )
-
-
-    def _index1(self, key):
-        return (
-            self._hash(key, 2)
-            % self.num_buckets
-        )
-
-
-    def _index2(
-        self,
-        index1,
-        fingerprint
-    ):
-
-        return (
-            index1
-            ^ self._hash(
-                fingerprint,
-                3
-            )
-        ) % self.num_buckets
-
+        if offset == 0:
+            offset = 1
+        return index ^ offset
 
     def contains(self, key):
-        fingerprint = (
-            self._fingerprint(key)
-        )
-
-        index1 = self._index1(key)
-
-        index2 = self._index2(
-            index1,
-            fingerprint
-        )
-
-        return (
-            fingerprint
-            in self.buckets[index1]
-            or
-            fingerprint
-            in self.buckets[index2]
-        )
-
+        fingerprint, index1, index2 = self._locate(key)
+        return (fingerprint in self.buckets[index1]
+            or fingerprint in self.buckets[index2])
 
     def insert(self, key):
-        fingerprint = (
-            self._fingerprint(key)
-        )
+        fingerprint, index1, index2 = self._locate(key)
 
-        index1 = self._index1(key)
-
-        index2 = self._index2(
-            index1,
-            fingerprint
-        )
-
-
-        # First bucket has space.
-        if (
-            len(self.buckets[index1])
-            < self.bucket_size
-        ):
-
-            self.buckets[index1].append(
-                fingerprint
-            )
-
-            return True
-
-
-        # Second bucket has space.
-        if (
-            len(self.buckets[index2])
-            < self.bucket_size
-        ):
-
-            self.buckets[index2].append(
-                fingerprint
-            )
-
-            return True
-
-
-        # Both buckets are full.
-        # Start kicking fingerprints.
-        index = random.choice(
-            [index1, index2]
-        )
-
-        current_fingerprint = (
-            fingerprint
-        )
-
-
-        for _ in range(
-            self.max_kicks
-        ):
-
-            # Choose one fingerprint to remove.
-            position = random.randrange(
-                self.bucket_size
-            )
-
-            # Swap fingerprints.
-            (
-                current_fingerprint,
-                self.buckets[index][position]
-            ) = (
-                self.buckets[index][position],
-                current_fingerprint
-            )
-
-            # Find the evicted fingerprint's
-            # alternate bucket.
-            index = self._index2(
-                index,
-                current_fingerprint
-            )
-
-            # Insert if there is space.
-            if (
-                len(self.buckets[index])
-                < self.bucket_size
-            ):
-
-                self.buckets[index].append(
-                    current_fingerprint
-                )
-
+        for index in (index1, index2):
+            if len(self.buckets[index]) < self.bucket_size:
+                self.buckets[index].append(fingerprint)
                 return True
 
+        index = self.rng.choice((index1, index2))
+        current = fingerprint
+        swaps = []
 
+        for _ in range(self.max_kicks):
+            position = self.rng.randrange(self.bucket_size)
+            evicted = self.buckets[index][position]
+            self.buckets[index][position] = current
+            swaps.append((index, position, evicted))
+            current = evicted
+            index = self._alt_index(index, current)
+
+            if len(self.buckets[index]) < self.bucket_size:
+                self.buckets[index].append(current)
+                return True
+
+        for bucket, position, evicted in reversed(swaps):
+            self.buckets[bucket][position] = evicted
         return False
