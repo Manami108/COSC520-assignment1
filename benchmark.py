@@ -1,4 +1,5 @@
 import csv
+from encodings import search_function
 import random
 import statistics
 import time
@@ -60,9 +61,9 @@ def build_structures(usernames):
     cuckoo = CuckooFilter(n, target_fpr=TARGET_FPR)
 
     for username in usernames:
-        table.insert(username)
-        bloom.add(username)
-        if not cuckoo.insert(username):
+        table.hash_insert(username)
+        bloom.bloom_insert(username)
+        if not cuckoo.cuckoo_insert(username):
             raise RuntimeError(
                 "Cuckoo insertion failed. "
                 "Try a lower target_load."
@@ -73,11 +74,12 @@ def build_structures(usernames):
 def measure_filter_accuracy(structure,usernames,count=FPR_QUERIES):
     n = len(usernames)
     false_positives = 0
+    
     for i in range(count):
         query = f"user_{n + i:012d}"
-        if structure.contains(query):
+        if search_function(query):
             false_positives += 1
-    false_positive_rate = (false_positives / count)
+    false_positive_rate = false_positives / count
     false_negatives = sum(not structure.contains(username)
         for username in usernames)
     return false_positive_rate, false_negatives
@@ -130,9 +132,9 @@ def benchmark(sizes, query_count=1000, repeats=5):
         methods = [
             ("Linear", lambda q: linear_search(usernames,q)),
             ("Binary", lambda q: binary_search(usernames,q)),
-            ("Hash", lambda q: table.contains(q)),
-            ("Bloom", lambda q: bloom.contains(q)),
-            ("Cuckoo", lambda q: cuckoo.contains(q))
+            ("Hash", lambda q: table.hash_search(q)),
+            ("Bloom", lambda q: bloom.bloom_search(q)),
+            ("Cuckoo", lambda q: cuckoo.cuckoo_search(q))
         ]
 
         for (name, search_function) in methods:
@@ -141,8 +143,8 @@ def benchmark(sizes, query_count=1000, repeats=5):
 
             print(f"{name:>7}: " f"{runtime:.3f} " "microseconds/query")
 
-        for (name,structure) in [("Bloom", bloom), ("Cuckoo", cuckoo)]:
-            (fpr, false_negatives) = measure_filter_accuracy(structure, usernames,)
+        for name,structure in [("Bloom", bloom.bloom_search), ("Cuckoo", cuckoo.cuckoo_search)]:
+            fpr, false_negatives = measure_filter_accuracy(search_function, usernames,)
             fpr_rows.append((n, name, TARGET_FPR, fpr, false_negatives))
 
             print(
