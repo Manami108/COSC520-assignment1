@@ -1,23 +1,29 @@
+# Completed
+
+MASK64 = 0xFFFFFFFFFFFFFFFF
+ 
 def fnv1a64(value):
-    """Return a 64-bit FNV-1a hash."""
     hash_value = 0xcbf29ce484222325
     fnv_prime = 0x00000100000001b3
-
+ 
     for byte in str(value).encode("utf-8"):
         hash_value ^= byte
-        hash_value *= fnv_prime
-        hash_value &= 0xFFFFFFFFFFFFFFFF
-
+        hash_value = (hash_value * fnv_prime) & MASK64
     return hash_value
-
-
+ 
+ 
 def djb2_64(value):
-    """Return a 64-bit DJB2 hash."""
     hash_value = 5381
-
+ 
     for byte in str(value).encode("utf-8"):
-        hash_value = (
-            (hash_value * 33) + byte
-        ) & 0xFFFFFFFFFFFFFFFF
-
+        hash_value = (hash_value * 33 + byte) & MASK64
     return hash_value
+ 
+def mix64(x):
+    x &= MASK64
+    x ^= x >> 33
+    x = (x * 0xff51afd7ed558ccd) & MASK64
+    x ^= x >> 33
+    x = (x * 0xc4ceb9fe1a85ec53) & MASK64
+    x ^= x >> 33
+    return x

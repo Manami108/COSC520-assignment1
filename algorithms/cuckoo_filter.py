@@ -1,106 +1,85 @@
-# Still needs to be checked.
-
+# Completed 
 import math
 import random
 
-from utils.hash_functions import fnv1a64, djb2_64
-
+from utils.hash_functions import fnv1a64, mix64
 
 class CuckooFilter:
-
-    def __init__(self, expected_items, target_fpr=0.01):
-        """Create a Cuckoo filter for the expected number of items."""
+    def __init__(self, expected_items, target_fpr=0.01, target_load=0.90):
         if expected_items <= 0:
             raise ValueError("expected_items must be positive")
-
         if not 0 < target_fpr < 1:
             raise ValueError("target_fpr must be between 0 and 1")
-
+        if not 0 < target_load < 1:
+            raise ValueError("target_load must be between 0 and 1")
+        
         self.bucket_size = 4
         self.max_kicks = 500
         self.rng = random.Random(0)
-
         self.fingerprint_bits = math.ceil(
-            math.log2((2 * self.bucket_size) / target_fpr)
-        )
-
-        target_load = 0.90
+            math.log2((2 * self.bucket_size) / target_fpr))
+        
+        self.fingerprint_mask = (1 << self.fingerprint_bits) - 1
+    
         needed_buckets = math.ceil(
-            expected_items / (self.bucket_size * target_load)
+            expected_items
+            / (self.bucket_size * target_load)
         )
 
-        # A power of two allows XOR to find the alternate bucket.
         self.num_buckets = 1
         while self.num_buckets < max(2, needed_buckets):
             self.num_buckets *= 2
-
         self.mask = self.num_buckets - 1
-
         self.buckets = [
-            [] for _ in range(self.num_buckets)
+            []
+            for _ in range(self.num_buckets)
         ]
 
-    def _fingerprint(self, key):
-        """Create a short fingerprint for a key."""
-        hash_value = fnv1a64("fingerprint:" + key)
-        return hash_value & ((1 << self.fingerprint_bits) - 1)
+    def _locate(self, key):
+        h = mix64(fnv1a64(key))
 
-    def _index1(self, key):
-        """Return the first bucket index."""
-        return fnv1a64(key) & self.mask
+        fingerprint = ((h >> 32) & self.fingerprint_mask)
 
-    def _index2(self, index, fingerprint):
-        """Return the alternate bucket index."""
-        fingerprint_hash = djb2_64(fingerprint) & self.mask
-        return index ^ fingerprint_hash
+        index1 = h & self.mask
+        index2 = self._alt_index(index1, fingerprint)
+        return fingerprint, index1, index2
+
+    def _alt_index(self, index, fingerprint):
+        offset = mix64(fingerprint) & self.mask
+
+        if offset == 0:
+            offset = 1
+        return index ^ offset
 
     def contains(self, key):
-        """Return True if the key may be present."""
-        fingerprint = self._fingerprint(key)
-        index1 = self._index1(key)
-        index2 = self._index2(index1, fingerprint)
-
-        return (
-            fingerprint in self.buckets[index1]
-            or fingerprint in self.buckets[index2]
-        )
+        fingerprint, index1, index2 = self._locate(key)
+        return (fingerprint in self.buckets[index1]
+            or fingerprint in self.buckets[index2])
 
     def insert(self, key):
-        """Insert a key into the Cuckoo filter."""
-        fingerprint = self._fingerprint(key)
-        index1 = self._index1(key)
-        index2 = self._index2(index1, fingerprint)
+        fingerprint, index1, index2 = self._locate(key)
 
-        # Insert directly if either bucket has space.
-        if len(self.buckets[index1]) < self.bucket_size:
-            self.buckets[index1].append(fingerprint)
-            return True
+        for index in (index1, index2):
+            if len(self.buckets[index]) < self.bucket_size:
+                self.buckets[index].append(fingerprint)
+                return True
 
-        if len(self.buckets[index2]) < self.bucket_size:
-            self.buckets[index2].append(fingerprint)
-            return True
-
-        # Both buckets are full, so start relocating fingerprints.
-        index = self.rng.choice([index1, index2])
-        current_fingerprint = fingerprint
+        index = self.rng.choice((index1, index2))
+        current = fingerprint
         swaps = []
 
         for _ in range(self.max_kicks):
             position = self.rng.randrange(self.bucket_size)
-
             evicted = self.buckets[index][position]
-            self.buckets[index][position] = current_fingerprint
+            self.buckets[index][position] = current
             swaps.append((index, position, evicted))
-
-            current_fingerprint = evicted
-            index = self._index2(index, current_fingerprint)
+            current = evicted
+            index = self._alt_index(index, current)
 
             if len(self.buckets[index]) < self.bucket_size:
-                self.buckets[index].append(current_fingerprint)
+                self.buckets[index].append(current)
                 return True
 
-        # Restore the filter if insertion fails.
         for bucket, position, evicted in reversed(swaps):
             self.buckets[bucket][position] = evicted
-
         return False
