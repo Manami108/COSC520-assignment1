@@ -1,5 +1,4 @@
 import csv
-from encodings import search_function
 import random
 import statistics
 import time
@@ -71,7 +70,7 @@ def build_structures(usernames):
     return table, bloom, cuckoo
 
 
-def measure_filter_accuracy(structure,usernames,count=FPR_QUERIES):
+def measure_filter_accuracy(search_function, usernames, count=FPR_QUERIES):
     n = len(usernames)
     false_positives = 0
     
@@ -80,7 +79,7 @@ def measure_filter_accuracy(structure,usernames,count=FPR_QUERIES):
         if search_function(query):
             false_positives += 1
     false_positive_rate = false_positives / count
-    false_negatives = sum(not structure.contains(username)
+    false_negatives = sum(not search_function(username)
         for username in usernames)
     return false_positive_rate, false_negatives
 

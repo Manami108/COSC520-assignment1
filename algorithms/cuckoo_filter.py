@@ -5,21 +5,16 @@ import random
 from utils.hash_functions import fnv1a64, mix64
 
 class CuckooFilter:
-    """
-    This class implements a Cuckoo filter for probabilistic membership
-    testing. Each item is represented by a compact fingerprint that can
-    be stored in one of two possible buckets. When both buckets are full,
-    existing fingerprints may be relocated to create space.
-    """
+    # Rather than storing the complete item, the Cuckoo filter keeps a fingerprint. 
+    # Two candidate buckets are available for each fingerprint, and relocation is used when neither bucket has an empty slot.
+    
     def __init__(self, expected_items, target_fpr=0.01, target_load=0.90):
-
-        """
-        This method creates a Cuckoo filter for the expected number of
-        items. It calculates the fingerprint size and the number of
-        buckets required based on the target false-positive rate and
-        target load factor. The number of buckets is rounded up to a
-        power of two.
-        """
+        # Input: expected_items is the number of items to store
+        #        target_fpr is the desired false positive rate
+        #        target_load is the desired load factor for the filter
+        # Output: a new Cuckoo filter
+        # To find the target value, this function goes through the list from the beginning and compares each element with the target. 
+        
         if expected_items <= 0:
             raise ValueError("expected_items must be positive")
         if not 0 < target_fpr < 1:
@@ -50,14 +45,10 @@ class CuckooFilter:
         ]
 
     def _locate(self, key):
-        """
-        This method calculates the fingerprint and the two possible bucket
-        locations for a key. The first bucket is obtained from the key's
-        hash value, and the second bucket is calculated from the first
-        bucket and the fingerprint. It returns the fingerprint and both
-        bucket indices.
-        """        
-
+        # Input: a username
+        # Output: the fingerprint and two possible bucket indices
+        # Using the key hash, the function finds the first possible bucket.
+        # It then combines this index with the fingerprint to obtain the second bucket.
         h = mix64(fnv1a64(key))
 
         fingerprint = ((h >> 32) & self.fingerprint_mask)
@@ -67,13 +58,11 @@ class CuckooFilter:
         return fingerprint, index1, index2
 
     def _alt_index(self, index, fingerprint):
-        
-        """
-        This method calculates the alternative bucket index for a
-        fingerprint. It combines the current bucket index with a
-        hash-derived offset using the XOR operation. It returns the
-        other possible bucket for the fingerprint.
-        """
+        # Input: a bucket index and a fingerprint
+        # Output: the alternative bucket index
+        # A hash-based offset is combined with the bucket index using XOR.
+        # This allows the algorithm to move from one candidate bucket to the other.
+
         offset = mix64(fingerprint) & self.mask
 
         if offset == 0:
@@ -81,28 +70,21 @@ class CuckooFilter:
         return index ^ offset
 
     def cuckoo_search(self, key):
+        # Input: a username
+        # Output: True if the username is found in either possible bucket, False otherwise
+        # Only the two candidate bucket locations are checked during lookup because the fingerprint can only be in one of them.
         
-        """
-        This method checks whether a key may exist in the Cuckoo filter.
-        It calculates the key's fingerprint and checks both possible
-        buckets. It returns True if the fingerprint appears in either
-        bucket and False otherwise. Because only fingerprints are stored,
-        a True result may be a false positive.
-        """
         fingerprint, index1, index2 = self._locate(key)
         return (fingerprint in self.buckets[index1]
             or fingerprint in self.buckets[index2])
 
     def cuckoo_insert(self, key):
+        # Input: a username
+        # Output: True if the username is inserted, False if no available position can be found
+        # An available position in either candidate bucket is used first.
+        # Otherwise, the filter starts relocating fingerprints by repeatedly evicting one and placing it in its alternative bucket. 
+        # The process stops with failure if all relocation attempts are exhausted.
         
-        """
-        This method inserts a key into the Cuckoo filter. It first tries
-        to place the fingerprint into either of its two possible buckets.
-        If both buckets are full, it repeatedly evicts an existing
-        fingerprint and moves it to its alternative bucket. It returns
-        True when the insertion succeeds and False if no available
-        position can be found after the maximum number of attempts.
-        """
         fingerprint, index1, index2 = self._locate(key)
 
         for index in (index1, index2):
@@ -131,14 +113,10 @@ class CuckooFilter:
         return False
     
     def cuckoo_delete(self, key):
-        """
-        Input: a username
-        Output: True if the username is deleted, False if it is not found
-
-        This method calculates the username's fingerprint and checks
-        both possible buckets. If the fingerprint is found, it is
-        removed from the corresponding bucket.
-        """
+        # Input: a username
+        # Output: True if the username is deleted, False if it is not found
+        # The username is converted into a fingerprint, and both candidate buckets are searched.
+        # If a matching fingerprint is found, it is removed from the appropriate bucket.
 
         fingerprint, index1, index2 = (self._locate(key))
         if fingerprint in self.buckets[index1]:

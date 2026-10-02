@@ -1,21 +1,15 @@
-
 import math
 from utils.hash_functions import fnv1a64, djb2_64, mix64
 
 class BloomFilter:
-    """
-    This class implements a Bloom filter for probabilistic membership
-    testing. It stores bits instead of complete usernames, which reduces
-    memory usage. A Bloom filter can produce false positives, but it
-    should not produce false negatives for successfully inserted items.
-    """
+    # Rather than storing each string directly, the Bloom filter records information in a bit array.
     def __init__(self, expected_items, target_fpr=0.01):
-        """
-        This method creates a Bloom filter for the expected number of
-        items and the requested false-positive rate. It calculates the
-        required number of bits and the number of hash positions used
-        for each item.
-        """
+        # Input: expected_items is the number of items to sture 
+        #        target_fpr is the desired false positive rate
+        # Output: a new Bloom filter
+        # The Bloom filter parameters are calculated from two inputs: the expected number of stored items and the target false-positive rate.
+        # Then, it determines the size of the bit array and the number of hash functions.
+        
         if expected_items <= 0:
             raise ValueError("expected_items must be positive")
         if not 0 < target_fpr < 1:
@@ -28,13 +22,9 @@ class BloomFilter:
         self.bit_array = bytearray((self.size + 7) // 8)
 
     def _hashes(self, key):
-        
-        """
-        This method generates the Bloom filter positions associated with
-        a key. It creates two base hash values and combines them using
-        double hashing. It yields each position that should be checked
-        or updated in the bit array.
-        """
+        # Input: a username
+        # Output: a sequence of hash positions in the bit array
+        # Two different base hashes are first computed, and their values are then, combined to determine each required position.
         h1 = mix64(fnv1a64(key))
         h2 = mix64(djb2_64(key)) | 1
         
@@ -42,23 +32,18 @@ class BloomFilter:
             yield (h1 + i * h2) % self.size
  
     def bloom_insert(self, key):
-
-        """
-        This method adds a key to the Bloom filter. It generates all hash
-        positions associated with the key and sets the corresponding bits
-        in the bit array to one.
-        """
+        # Input: a username
+        # Output: None
+        # Each hash position corresponding to the key is set to 1.
         
         for position in self._hashes(key):
             self.bit_array[position >> 3] |= 1 << (position & 7)
 
     def bloom_search(self, key):
-        """
-        This method checks whether a key may exist in the Bloom filter.
-        It checks every bit associated with the key. It returns False if
-        at least one required bit is zero. It returns True if all required
-        bits are one, although this result may be a false positive.
-        """        
+        # Input: a username
+        # Output: True if the username may be present, False otherwise
+        # If at least one required bit is 0, the key is definitely not present.
+        # If all of them are set to 1, the key is present, with a possibility of a false positive.
 
         for position in self._hashes(key):
             if not self.bit_array[position >> 3] & (1 << (position & 7)):
