@@ -10,9 +10,11 @@ from algorithms.bloom_filter import BloomFilter
 from algorithms.cuckoo_filter import CuckooFilter
 from dataset import make_dataset, save_dataset
 
+# The same false positive rate is used for both Bloom and Cuckoo filters.
 TARGET_FPR = 0.01
 FPR_QUERIES = 100_000
 
+# This code creates an equal mixture of existings and non existing usernames. 
 def make_queries(n, count, seed=123):
     if n <= 0:
         raise ValueError("n must be positive")
@@ -36,7 +38,7 @@ def make_queries(n, count, seed=123):
     rng.shuffle(queries)
     return queries
 
-
+# This function measures the median lookup time per query. 
 def median_time_per_query(search_function, queries, repeats):
     if not queries:
         raise ValueError("queries must not be empty")
@@ -53,6 +55,7 @@ def median_time_per_query(search_function, queries, repeats):
 
     return (statistics.median(samples) * 1_000_000)
 
+# This function makes hash table, bloom filter, and cuckoo filter from a same dataset. 
 def build_structures(usernames):
     n = len(usernames)
     table = HashTable(n)
@@ -60,29 +63,30 @@ def build_structures(usernames):
     cuckoo = CuckooFilter(n, target_fpr=TARGET_FPR)
 
     for username in usernames:
-        table.insert(username)
-        bloom.add(username)
-        if not cuckoo.insert(username):
+        table.hash_insert(username)
+        bloom.bloom_insert(username)
+        if not cuckoo.cuckoo_insert(username):
             raise RuntimeError(
                 "Cuckoo insertion failed. "
                 "Try a lower target_load."
             )
     return table, bloom, cuckoo
 
-
-def measure_filter_accuracy(structure,usernames,count=FPR_QUERIES):
+# This function calculates the false positive rate and false negatives. 
+def measure_filter_accuracy(search_function, usernames, count=FPR_QUERIES):
     n = len(usernames)
     false_positives = 0
+    
     for i in range(count):
         query = f"user_{n + i:012d}"
-        if structure.contains(query):
+        if search_function(query):
             false_positives += 1
-    false_positive_rate = (false_positives / count)
-    false_negatives = sum(not structure.contains(username)
+    false_positive_rate = false_positives / count
+    false_negatives = sum(not search_function(username)
         for username in usernames)
     return false_positive_rate, false_negatives
 
-
+# this block is to plot results of the methods. 
 def plot_results(rows):
     import matplotlib.pyplot as plt
 
@@ -94,7 +98,8 @@ def plot_results(rows):
         x_values = [n for n, _ in points]
         y_values = [runtime for _, runtime in points]
         plt.plot(x_values, y_values, label=method)
-
+        
+    # logarithmic scale is used. 
     plt.xscale("log")
     plt.yscale("log")
     plt.xlabel("Number of stored logins, n")
@@ -105,7 +110,7 @@ def plot_results(rows):
     plt.savefig("lookup_runtime.png", dpi=200)
     plt.close()
 
-
+# All methods over several dataset size. 
 def benchmark(sizes, query_count=1000, repeats=5):
     if not sizes:
         raise ValueError("sizes must not be empty")
@@ -118,6 +123,8 @@ def benchmark(sizes, query_count=1000, repeats=5):
 
     runtime_rows = []
     fpr_rows = []
+    
+    # It generates the largest dataset so that it can be reused. 
     largest_dataset = make_dataset(max(sizes))
     save_dataset(largest_dataset)
 
@@ -130,9 +137,9 @@ def benchmark(sizes, query_count=1000, repeats=5):
         methods = [
             ("Linear", lambda q: linear_search(usernames,q)),
             ("Binary", lambda q: binary_search(usernames,q)),
-            ("Hash", lambda q: table.contains(q)),
-            ("Bloom", lambda q: bloom.contains(q)),
-            ("Cuckoo", lambda q: cuckoo.contains(q))
+            ("Hash", lambda q: table.hash_search(q)),
+            ("Bloom", lambda q: bloom.bloom_search(q)),
+            ("Cuckoo", lambda q: cuckoo.cuckoo_search(q))
         ]
 
         for (name, search_function) in methods:
@@ -141,16 +148,18 @@ def benchmark(sizes, query_count=1000, repeats=5):
 
             print(f"{name:>7}: " f"{runtime:.3f} " "microseconds/query")
 
-        for (name,structure) in [("Bloom", bloom), ("Cuckoo", cuckoo)]:
-            (fpr, false_negatives) = measure_filter_accuracy(structure, usernames,)
+        for name,structure in [
+            ("Bloom", bloom.bloom_search), ("Cuckoo", cuckoo.cuckoo_search)
+            ]:
+            fpr, false_negatives = measure_filter_accuracy(structure, usernames,)
             fpr_rows.append((n, name, TARGET_FPR, fpr, false_negatives))
 
-            print(
-                f"{name:>7}: "
-                f"target FPR={TARGET_FPR:.2%}, "
-                f"measured FPR={fpr:.4%}, "
-                f"false negatives={false_negatives}"
-            )
+            # print(
+            #     f"{name:>7}: "
+            #     f"target FPR={TARGET_FPR:.2%}, "
+            #     f"measured FPR={fpr:.4%}, "
+            #     f"false negatives={false_negatives}"
+            # )
 
     # Save runtime results.
     with open("benchmark_results.csv", "w", newline="", encoding="utf-8") as file:

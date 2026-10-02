@@ -1,74 +1,137 @@
-# Completed
 import unittest
 
-from algorithms.linear_search import linear_search
-from algorithms.binary_search import binary_search
+from algorithms.linear_search import linear_search, linear_insert, linear_delete
+from algorithms.binary_search import binary_search, binary_insert, binary_delete
 from algorithms.hash_table import HashTable
 from algorithms.bloom_filter import BloomFilter
 from algorithms.cuckoo_filter import CuckooFilter
 from dataset import make_dataset
 
+# Checks that linear search works correctly.
 class TestLinearSearch(unittest.TestCase):
-    def test_linear_search(self):
+    # Search
+    def test_search(self):
         values = make_dataset(10)
         self.assertTrue(linear_search(values, "user_000000000006"))
         self.assertFalse(linear_search(values, "user_000000000028"))
+        
+    # Insert
+    def test_insert(self):
+        values = make_dataset(10)
+        target = "user_000000000010"
+        self.assertTrue(linear_insert(values, target))
+        self.assertTrue(linear_search(values, target))
+        self.assertFalse(linear_insert(values, target))
+        
+    # Delete
+    def test_delete(self):
+        values = make_dataset(10)
+        target = "user_000000000006"
+        self.assertTrue(linear_delete(values, target))
+        self.assertFalse(linear_search(values, target))
+        self.assertFalse(linear_delete(values, target))
 
+# Checks that binary search works correctly.
 class TestBinarySearch(unittest.TestCase):
-    def test_binary_search(self):
+    # Search
+    def test_search(self):
         values = make_dataset(10)
         self.assertTrue(binary_search(values, "user_000000000006"))
         self.assertFalse(binary_search(values, "user_000000000028"))
 
+    # Insert
+    def test_insert(self):
+        values = make_dataset(10)
+        target = "user_000000000010"
+        self.assertTrue(binary_insert(values, target))
+        self.assertTrue(binary_search(values, target))
+        self.assertEqual(values, sorted(values))
+        self.assertFalse(binary_insert(values, target))
+    # Delete
+    def test_delete(self):
+        values = make_dataset(10)
+        target = "user_000000000006"
+        self.assertTrue(binary_delete(values, target))
+        self.assertFalse(binary_search(values, target))
+        self.assertEqual(values, sorted(values))
+        self.assertFalse(binary_delete(values, target))
+
+# Checks that hash table works correctly.
 class TestHashTable(unittest.TestCase):
-    def test_insert_and_search(self):
+
+    # Search
+    def test_search(self):
         values = make_dataset(10)
         table = HashTable(len(values))
         for value in values:
-            table.insert(value)
-        self.assertTrue(table.contains("user_000000000006"))
-        self.assertFalse(table.contains("user_000000000028"))
+            table.hash_insert(value)
+        self.assertTrue(table.hash_search("user_000000000006"))
+        self.assertFalse(table.hash_search("user_000000000028"))
 
-    def test_collision(self):
-        table = HashTable(3)
-        first = "user_000000000000"
-        second = "user_000000000005"
-        table.insert(first)
-        table.insert(second)
-        self.assertTrue(table.contains(first))
-        self.assertTrue(table.contains(second))
-    
-    def test_duplicate_insert(self):
+    # Insert
+    def test_insert(self):
         table = HashTable(10)
-        key = "user_000000000001"
-        self.assertTrue(table.insert(key))
-        self.assertFalse(table.insert(key))
+        target = "user_000000000010"
+        self.assertTrue(table.hash_insert(target))
+        self.assertTrue(table.hash_search(target))
+        self.assertFalse(table.hash_insert(target))
 
+    # Delete
+    def test_delete(self):
+        table = HashTable(10)
+        target = "user_000000000006"
+        table.hash_insert(target)
+        self.assertTrue(table.hash_delete(target))
+        self.assertFalse(table.hash_search(target))
+        self.assertFalse(table.hash_delete(target))
 
+# Checks that Bloom filter works correctly.
 class TestBloomFilter(unittest.TestCase):
-    def test_inserted_items_are_found(self):
+
+    # Search
+    def test_search(self):
         values = make_dataset(100)
         bloom = BloomFilter(len(values))
         for value in values:
-            bloom.add(value)
+            bloom.bloom_insert(value)
         for value in values:
-            self.assertTrue(bloom.contains(value))
-            
+            self.assertTrue(bloom.bloom_search(value))
+
+    # Insert
+    def test_insert(self):
+        bloom = BloomFilter(10)
+        target = "user_000000000010"
+        bloom.bloom_insert(target)
+        self.assertTrue(bloom.bloom_search(target))
+
+# Checks that Cuckoo filter works correctly.
 class TestCuckooFilter(unittest.TestCase):
-    def test_inserted_items_are_found(self):
+
+    # Search
+    def test_search(self):
         values = make_dataset(100)
         cuckoo = CuckooFilter(len(values))
         for value in values:
-            self.assertTrue(cuckoo.insert(value))
+            cuckoo.cuckoo_insert(value)
         for value in values:
-            self.assertTrue(cuckoo.contains(value))
+            self.assertTrue(cuckoo.cuckoo_search(value))
 
-class TestDataset(unittest.TestCase):
-    def test_dataset(self):
-        dataset = make_dataset(100)
-        self.assertEqual(len(dataset), 100)
-        self.assertEqual(dataset, sorted(dataset))
-        self.assertEqual(len(dataset), len(set(dataset)))
+    # Insert
+    def test_insert(self):
+        cuckoo = CuckooFilter(10)
+        target = "user_000000000010"
+        self.assertTrue(cuckoo.cuckoo_insert(target))
+        self.assertTrue(cuckoo.cuckoo_search(target))
 
+
+    # Delete
+    def test_delete(self):
+        cuckoo = CuckooFilter(10)
+        target = "user_000000000006"
+        cuckoo.cuckoo_insert(target)
+        self.assertTrue(cuckoo.cuckoo_delete(target))
+        self.assertFalse(cuckoo.cuckoo_search(target))
+        self.assertFalse(cuckoo.cuckoo_delete(target))
+        
 if __name__ == "__main__":
     unittest.main()

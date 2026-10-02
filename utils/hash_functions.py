@@ -1,8 +1,7 @@
-# Completed
-
 MASK64 = 0xFFFFFFFFFFFFFFFF
  
 def fnv1a64(value):
+    # It generates a 64-bit FNV-1a hash value from the input.
     hash_value = 0xcbf29ce484222325
     fnv_prime = 0x00000100000001b3
  
@@ -13,6 +12,7 @@ def fnv1a64(value):
  
  
 def djb2_64(value):
+    # It generates a 64-bit DJB2 hash value from the input.
     hash_value = 5381
  
     for byte in str(value).encode("utf-8"):
@@ -20,6 +20,7 @@ def djb2_64(value):
     return hash_value
  
 def mix64(x):
+    # It mixes the bits of a 64-bit integer.
     x &= MASK64
     x ^= x >> 33
     x = (x * 0xff51afd7ed558ccd) & MASK64
