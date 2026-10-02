@@ -83,15 +83,20 @@ def measure_filter_accuracy(search_fn, usernames, count=FPR_QUERIES):
 def plot_results(rows):
     import matplotlib.pyplot as plt
 
-    methods = ["Linear", "Binary", "Hash", "Bloom", "Cuckoo", "Quotient"]
+    # Plot 1: Compare the five required methods.
+    methods = ["Linear", "Binary", "Hash", "Bloom", "Cuckoo"]
+
     plt.figure(figsize=(8, 5))
 
     for method in methods:
-        points = sorted((n, runtime) for n, name, runtime in rows if name == method)
+        points = sorted(
+            (n, runtime)
+            for n, name, runtime in rows
+            if name == method
+        )
         x, y = zip(*points)
         plt.plot(x, y, label=method)
-        
-    # logarithmic scale is used. 
+
     plt.xscale("log")
     plt.yscale("log")
     plt.xlabel("Number of stored logins, n")
@@ -100,6 +105,31 @@ def plot_results(rows):
     plt.legend()
     plt.tight_layout()
     plt.savefig("lookup_runtime.png", dpi=200)
+    plt.close()
+
+
+    # Plot 2: Compare the probabilistic filters.
+    filter_methods = ["Bloom", "Cuckoo", "Quotient"]
+
+    plt.figure(figsize=(8, 5))
+
+    for method in filter_methods:
+        points = sorted(
+            (n, runtime)
+            for n, name, runtime in rows
+            if name == method
+        )
+        x, y = zip(*points)
+        plt.plot(x, y, label=method)
+
+    plt.xscale("log")
+    plt.yscale("log")
+    plt.xlabel("Number of stored logins, n")
+    plt.ylabel("Median lookup time (microseconds/query)")
+    plt.title("Probabilistic Filter Lookup-Time Comparison")
+    plt.legend()
+    plt.tight_layout()
+    plt.savefig("filter_runtime.png", dpi=200)
     plt.close()
 
 # All methods over several dataset size. 
