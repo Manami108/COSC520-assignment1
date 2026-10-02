@@ -13,9 +13,10 @@ from dataset import make_dataset, save_dataset
 
 # The same false positive rate is used for both Bloom and Cuckoo filters, and quatient filter.
 TARGET_FPR = 0.01
+# It is number of non-existing usernames to measure the false positive rate. 
 FPR_QUERIES = 100_000
 
-# This code creates an equal mixture of existings and non existing usernames. 
+# This code creates an equal mixture of existings and non existing usernames (about 50%, 50%). 
 def make_queries(n, count, seed=123):
     if n <= 0:
         raise ValueError("n must be positive")
@@ -34,7 +35,8 @@ def make_queries(n, count, seed=123):
         f"user_{n + i:012d}"
         for i in range(count - half)
     ]
-
+    
+    # the queries are shuffled. 
     queries = present + absent
     rng.shuffle(queries)
     return queries
@@ -53,10 +55,11 @@ def median_time_per_query(search_function, queries, repeats):
             search_function(query)
         elapsed = time.perf_counter() - start
         samples.append(elapsed / len(queries))
-
+        
+    # It multiplies by 1,000,000 to convert seconds to microseconds.
     return (statistics.median(samples) * 1_000_000)
 
-# This function makes hash table, bloom filter, and cuckoo filter from a same dataset. 
+# This function makes hash table, bloom filter, cuckoo filter, and quotient filter from a same dataset. 
 def build_structures(usernames):
     n = len(usernames)
     table = HashTable(n)
@@ -111,6 +114,7 @@ def plot_results(rows):
     plt.close()
 
 # All methods over several dataset size. 
+# 1000 queries are used for each experiment.
 def benchmark(sizes, query_count=1000, repeats=5):
     if not sizes:
         raise ValueError("sizes must not be empty")
@@ -148,7 +152,8 @@ def benchmark(sizes, query_count=1000, repeats=5):
             runtime_rows.append((n, name, runtime))
 
             print(f"{name:>8}: " f"{runtime:.3f} " "microseconds/query")
-
+            
+        # For probabilisti fileters
         for name, structure in [
             ("Bloom", bloom.bloom_search),
             ("Cuckoo", cuckoo.cuckoo_search),
