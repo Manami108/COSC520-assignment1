@@ -22,19 +22,22 @@ class CuckooFilter:
         if not 0 < target_load < 1:
             raise ValueError("target_load must be between 0 and 1")
         
+        # Each bucket can hold 4 fingerprints. 
         self.bucket_size = 4
+        # the maximum number of relocation attempts is set to 500.
         self.max_kicks = 500
         self.rng = random.Random(0)
+        # The fingerprint size is calculated. 
         self.fingerprint_bits = math.ceil(
             math.log2((2 * self.bucket_size) / target_fpr))
         
         self.fingerprint_mask = (1 << self.fingerprint_bits) - 1
-    
         needed_buckets = math.ceil(
             expected_items
             / (self.bucket_size * target_load)
         )
-
+        
+        # The number of buckets is rounded up to the next power of two. 
         self.num_buckets = 1
         while self.num_buckets < max(2, needed_buckets):
             self.num_buckets *= 2
@@ -50,9 +53,11 @@ class CuckooFilter:
         # Using the key hash, the function finds the first possible bucket.
         # It then combines this index with the fingerprint to obtain the second bucket.
         h = mix64(fnv1a64(key))
-
+        
+        # It uses higher order bits to create a fingerprint. 
         fingerprint = ((h >> 32) & self.fingerprint_mask)
-
+        
+        # It uses lower order bits to determine the first bucket. 
         index1 = h & self.mask
         index2 = self._alt_index(index1, fingerprint)
         return fingerprint, index1, index2
@@ -86,28 +91,35 @@ class CuckooFilter:
         # The process stops with failure if all relocation attempts are exhausted.
         
         fingerprint, index1, index2 = self._locate(key)
-
+        
+        # Try to insert without kicking first. 
         for index in (index1, index2):
             if len(self.buckets[index]) < self.bucket_size:
                 self.buckets[index].append(fingerprint)
                 return True
-
+            
+        # If both buckets are full, randomly choose one of the two candidate buckets to start the relocation process.
         index = self.rng.choice((index1, index2))
         current = fingerprint
         swaps = []
 
         for _ in range(self.max_kicks):
+            
+            # A random fingerprint is selected from the chosen bucket to be evicted.
             position = self.rng.randrange(self.bucket_size)
             evicted = self.buckets[index][position]
             self.buckets[index][position] = current
+            # It records the previous value to allow for backtracking if the insertion fails.
             swaps.append((index, position, evicted))
             current = evicted
+            # The alternative bucket for the evicted fingerprint is calculated, and the process continues.
             index = self._alt_index(index, current)
 
             if len(self.buckets[index]) < self.bucket_size:
                 self.buckets[index].append(current)
                 return True
-
+            
+        # The previous values are restored if the insertion fails after all relocation attempts.
         for bucket, position, evicted in reversed(swaps):
             self.buckets[bucket][position] = evicted
         return False

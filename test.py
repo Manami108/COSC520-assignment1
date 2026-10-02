@@ -5,6 +5,7 @@ from algorithms.binary_search import binary_search, binary_insert, binary_delete
 from algorithms.hash_table import HashTable
 from algorithms.bloom_filter import BloomFilter
 from algorithms.cuckoo_filter import CuckooFilter
+from algorithms.quotient_filter import QuotientFilter
 from dataset import make_dataset
 
 # Checks that linear search works correctly.
@@ -132,6 +133,24 @@ class TestCuckooFilter(unittest.TestCase):
         self.assertTrue(cuckoo.cuckoo_delete(target))
         self.assertFalse(cuckoo.cuckoo_search(target))
         self.assertFalse(cuckoo.cuckoo_delete(target))
+        
+# Checks that Quotient filter works correctly.
+class TestQuotientFilter(unittest.TestCase):
+    # Search
+    def test_search(self):
+        values = make_dataset(100)
+        quotient = QuotientFilter(len(values))
+        for value in values:
+            quotient.quotient_insert(value)
+        for value in values:
+            self.assertTrue(quotient.quotient_search(value))
+
+    # Insert
+    def test_insert(self):
+        quotient = QuotientFilter(10)
+        target = "user_000000000010"
+        quotient.quotient_insert(target)
+        self.assertTrue(quotient.quotient_search(target))
         
 if __name__ == "__main__":
     unittest.main()
