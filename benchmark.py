@@ -162,12 +162,12 @@ def benchmark(sizes, query_count=1000, repeats=5):
             fpr, false_negatives = measure_filter_accuracy(structure, usernames,)
             fpr_rows.append((n, name, TARGET_FPR, fpr, false_negatives))
 
-            print(
-                f"{name:>8}: "
-                f"target FPR={TARGET_FPR:.2%}, "
-                f"measured FPR={fpr:.4%}, "
-                f"false negatives={false_negatives}"
-            )
+            # print(
+            #     f"{name:>8}: "
+            #     f"target FPR={TARGET_FPR:.2%}, "
+            #     f"measured FPR={fpr:.4%}, "
+            #     f"false negatives={false_negatives}"
+            # )
 
     # Save runtime results.
     with open("benchmark_results.csv", "w", newline="", encoding="utf-8") as file:

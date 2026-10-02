@@ -11,6 +11,8 @@ class HashTable:
  
         self.capacity = int(expected_items / 0.7) + 1
         self.table = [None] * self.capacity
+        
+        # This is to mark deleted slots in the hash table, allowing for proper probing during searches and insertions.
         self.DELETED = object()
 
     def hash_function(self, key):
@@ -77,6 +79,7 @@ class HashTable:
                 return False
             if self.table[index] is not self.DELETED:
                 if self.table[index] == key:
+                    # Rather than removing the item or mark as None, the entry is marked as deleted. 
                     self.table[index] = self.DELETED
                     return True
             index = (index + 1) % self.capacity

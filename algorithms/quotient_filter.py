@@ -11,8 +11,7 @@ class QuotientFilter:
         #        target_fpr is the desired false positive rate
         #        target_load is the desired load factor
         # Output: a new Quotient filter
-        # The number of slots and remainder bits are calculated from the expected
-        # number of items and target false positive rate.
+        # The number of slots and remainder bits are calculated from the expected number of items and target false positive rate.
 
         if expected_items <= 0:
             raise ValueError("expected_items must be positive")
@@ -20,21 +19,27 @@ class QuotientFilter:
             raise ValueError("target_fpr must be between 0 and 1")
         if not 0 < target_load < 1:
             raise ValueError("target_load must be between 0 and 1")
-
+        
+        # This is to ensure that enough slots are available to store the expected number of items at the desired load factor.
         needed_slots = math.ceil(expected_items / target_load)
-
+        
+        # The number of slots is rounded up to the next power of two. 
         self.num_slots = 1
         while self.num_slots < max(2, needed_slots):
             self.num_slots *= 2
 
         self.slot_mask = self.num_slots - 1
+        # The number of quotient bits is log2(number of slots).
         self.quotient_bits = self.num_slots.bit_length() - 1
+        # The remainder length is selected so that the probability of two fingerprints sharing the same remainder is approximately bounded by the target false-positive rate.
         self.remainder_bits = max(1, math.ceil(math.log2(1 / target_fpr)))
         self.remainder_mask = (1 << self.remainder_bits) - 1
-
+        
+        # The total number of bits should not exceed 64. 
         if self.quotient_bits + self.remainder_bits > 64:
             raise ValueError("The Quotient filter requires more than 64 hash bits.")
-
+        
+        # One metadata bit is stored for each slot.
         metadata_bytes = (self.num_slots + 7) // 8
         self.occupied = bytearray(metadata_bytes)
         self.continuation = bytearray(metadata_bytes)
@@ -51,6 +56,7 @@ class QuotientFilter:
         # Input: a bit array and slot index
         # Output: True if the selected bit is set
         # The function checks one metadata bit.
+        # It finds the byte and bit corresponding to the selected slot.
         return bool(bit_array[index >> 3] & (1 << (index & 7)))
 
     def _set_bit(self, bit_array, index, value=True):
@@ -75,13 +81,13 @@ class QuotientFilter:
     def _previous(self, index):
         # Input: a slot index
         # Output: the previous slot index
-        # The table is treated as a circular array.
+        # The table is treated as a circular array, and it move to the previous slot.
         return (index - 1) & self.slot_mask
 
     def _locate(self, key):
         # Input: a username
         # Output: the quotient and remainder
-        # The username is hashed and divided into quotient bits and remainder bits.
+        # The username is hashed and split into quotient bits and remainder bits.
 
         hash_value = mix64(fnv1a64(key))
         remainder = hash_value & self.remainder_mask
@@ -98,11 +104,13 @@ class QuotientFilter:
         if not run_exists and not on_insert:
             return False, quotient, None
         bucket = quotient
-
+        
+        # It move backwards to find the start of the cluster. 
         while self._get_bit(self.shifted, bucket):
             bucket = self._previous(bucket)
         position = bucket
-
+        
+        # It move forward to find the start of the run for the given quotient.
         while bucket != quotient:
             while True:
                 position = self._next(position)
@@ -134,7 +142,6 @@ class QuotientFilter:
         # Input: a username
         # Output: True if a new fingerprint is inserted, False if it is already represented
         # The remainder is inserted into its run and existing entries are shifted when needed.
-
         quotient, remainder = self._locate(key)
         present, position, start_of_run = self._scan(quotient, remainder, on_insert=True)
 
@@ -154,7 +161,8 @@ class QuotientFilter:
         if position != quotient:
             self._set_bit(self.shifted, position)
         start_position = position
-
+        
+        # Shift existing entries until an empty slot is found.
         while current_used:
             position = self._next(position)
             next_continuation = self._get_bit(self.continuation, position)
@@ -180,7 +188,6 @@ class QuotientFilter:
         # Input: a username
         # Output: True if the username may be present, False otherwise
         # The correct run is located and searched for the username's remainder.
-
         quotient, remainder = self._locate(key)
         present, _, _ = self._scan(quotient, remainder)
         return present
