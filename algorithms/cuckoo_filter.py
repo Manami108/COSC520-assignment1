@@ -1,4 +1,3 @@
-# Completed 
 import math
 import random
 
@@ -8,44 +7,31 @@ class CuckooFilter:
     # Rather than storing the complete item, the Cuckoo filter keeps a fingerprint. 
     # Two candidate buckets are available for each fingerprint, and relocation is used when neither bucket has an empty slot.
     
-    def __init__(self, expected_items, target_fpr=0.01, target_load=0.90):
-        # Input: expected_items is the number of items to store
-        #        target_fpr is the desired false positive rate
+    def __init__(self, n, p=0.01):
+        # Input: n is the number of items to store
+        #        p is the desired false positive rate
         #        target_load is the desired load factor for the filter
         # Output: a new Cuckoo filter
         # The constructor calculates the fingerprint size and required number of buckets.
-        
-        if expected_items <= 0:
-            raise ValueError("expected_items must be positive")
-        if not 0 < target_fpr < 1:
-            raise ValueError("target_fpr must be between 0 and 1")
-        if not 0 < target_load < 1:
-            raise ValueError("target_load must be between 0 and 1")
-        
+
         # Each bucket can hold 4 fingerprints. 
         self.bucket_size = 4
         # the maximum number of relocation attempts is set to 500.
         self.max_kicks = 500
         self.rng = random.Random(0)
         # The fingerprint size is calculated. 
-        self.fingerprint_bits = math.ceil(
-            math.log2((2 * self.bucket_size) / target_fpr))
+        bits = math.ceil(
+            math.log2((2 * self.bucket_size) / p))
         
-        self.fingerprint_mask = (1 << self.fingerprint_bits) - 1
-        needed_buckets = math.ceil(
-            expected_items
-            / (self.bucket_size * target_load)
-        )
+        self.fp_mask = (1 << bits) - 1
+        needed = math.ceil(n / (self.bucket_size * 0.9))
         
         # The number of buckets is rounded up to the next power of two. 
-        self.num_buckets = 1
-        while self.num_buckets < max(2, needed_buckets):
+        self.num_buckets = 2
+        while self.num_buckets < needed:
             self.num_buckets *= 2
         self.mask = self.num_buckets - 1
-        self.buckets = [
-            []
-            for _ in range(self.num_buckets)
-        ]
+        self.buckets = [[] for _ in range(self.num_buckets)]
 
     def _locate(self, key):
         # Input: a username
@@ -55,33 +41,33 @@ class CuckooFilter:
         h = mix64(fnv1a64(key))
         
         # It uses higher order bits to create a fingerprint. 
-        fingerprint = ((h >> 32) & self.fingerprint_mask)
+        fp = (h >> 32) & self.fp_mask
         
         # It uses lower order bits to determine the first bucket. 
-        index1 = h & self.mask
-        index2 = self._alt_index(index1, fingerprint)
-        return fingerprint, index1, index2
+        idx1 = h & self.mask
+        idx2 = self._alt_idx(idx1, fp)
+        return fp, idx1, idx2
 
-    def _alt_index(self, index, fingerprint):
+    def _alt_idx(self, idx, fp):
         # Input: a bucket index and a fingerprint
         # Output: the alternative bucket index
         # A hash-based offset is combined with the bucket index using XOR.
         # This allows the algorithm to move from one candidate bucket to the other.
 
-        offset = mix64(fingerprint) & self.mask
+        offset = mix64(fp) & self.mask
 
         if offset == 0:
             offset = 1
-        return index ^ offset
+        return idx ^ offset
 
     def cuckoo_search(self, key):
         # Input: a username
         # Output: True if the username is found in either possible bucket, False otherwise
         # Only the two candidate bucket locations are checked during lookup.
 
-        fingerprint, index1, index2 = self._locate(key)
-        return (fingerprint in self.buckets[index1]
-            or fingerprint in self.buckets[index2])
+        fp, idx1, idx2 = self._locate(key)
+        return (fp in self.buckets[idx1]
+            or fp in self.buckets[idx2])
 
     def cuckoo_insert(self, key):
         # Input: a username
@@ -90,38 +76,41 @@ class CuckooFilter:
         # Otherwise, the filter starts relocating fingerprints by repeatedly evicting one and placing it in its alternative bucket. 
         # The process stops with failure if all relocation attempts are exhausted.
         
-        fingerprint, index1, index2 = self._locate(key)
+        fp, idx1, idx2 = self._locate(key)
         
         # Try to insert without kicking first. 
-        for index in (index1, index2):
-            if len(self.buckets[index]) < self.bucket_size:
-                self.buckets[index].append(fingerprint)
-                return True
+        if len(self.buckets[idx1]) < self.bucket_size:
+            self.buckets[idx1].append(fp)
+            return True
+        if len(self.buckets[idx2]) < self.bucket_size:
+            self.buckets[idx2].append(fp)
+            return True
+
             
         # If both buckets are full, randomly choose one of the two candidate buckets to start the relocation process.
-        index = self.rng.choice((index1, index2))
-        current = fingerprint
+        idx = self.rng.choice((idx1, idx2))
+        current = fp
         swaps = []
 
         for _ in range(self.max_kicks):
             
             # A random fingerprint is selected from the chosen bucket to be evicted.
-            position = self.rng.randrange(self.bucket_size)
-            evicted = self.buckets[index][position]
-            self.buckets[index][position] = current
+            pos = self.rng.randrange(self.bucket_size)
+            evicted = self.buckets[idx][pos]
+            self.buckets[idx][pos] = current
             # It records the previous value to allow for backtracking if the insertion fails.
-            swaps.append((index, position, evicted))
+            swaps.append((idx, pos, evicted))
             current = evicted
             # The alternative bucket for the evicted fingerprint is calculated, and the process continues.
-            index = self._alt_index(index, current)
+            idx = self._alt_idx(idx, current)
 
-            if len(self.buckets[index]) < self.bucket_size:
-                self.buckets[index].append(current)
+            if len(self.buckets[idx]) < self.bucket_size:
+                self.buckets[idx].append(current)
                 return True
             
         # The previous values are restored if the insertion fails after all relocation attempts.
-        for bucket, position, evicted in reversed(swaps):
-            self.buckets[bucket][position] = evicted
+        for bucket, pos, evicted in reversed(swaps):
+            self.buckets[bucket][pos] = evicted
         return False
     
     def cuckoo_delete(self, key):
@@ -129,12 +118,11 @@ class CuckooFilter:
         # Output: True if the username is deleted, False if it is not found
         # The username is converted into a fingerprint, and both candidate buckets are searched.
         # If a matching fingerprint is found, it is removed from the bucket.
-        
-        fingerprint, index1, index2 = (self._locate(key))
-        if fingerprint in self.buckets[index1]:
-            self.buckets[index1].remove(fingerprint)
+        fp, idx1, idx2 = self._locate(key)
+        if fp in self.buckets[idx1]:
+            self.buckets[idx1].remove(fp)
             return True
-        if fingerprint in self.buckets[index2]:
-            self.buckets[index2].remove(fingerprint)
+        if fp in self.buckets[idx2]:
+            self.buckets[idx2].remove(fp)
             return True
         return False

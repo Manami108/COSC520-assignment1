@@ -12,17 +12,12 @@ from algorithms.quotient_filter import QuotientFilter
 from dataset import make_dataset, save_dataset
 
 # The same false positive rate is used for both Bloom and Cuckoo filters, and quatient filter.
-TARGET_FPR = 0.01
+p = 0.01
 # It is number of non-existing usernames to measure the false positive rate. 
 FPR_QUERIES = 100_000
 
 # This code creates an equal mixture of existings and non existing usernames (about 50%, 50%). 
 def make_queries(n, count, seed=123):
-    if n <= 0:
-        raise ValueError("n must be positive")
-    if count <= 0:
-        raise ValueError("count must be positive")
-
     rng = random.Random(seed)
     half = count // 2
 
@@ -42,30 +37,25 @@ def make_queries(n, count, seed=123):
     return queries
 
 # This function measures the median lookup time per query. 
-def median_time_per_query(search_function, queries, repeats):
-    if not queries:
-        raise ValueError("queries must not be empty")
-    if repeats <= 0:
-        raise ValueError("repeats must be positive")
-    
+def median_time_per_query(search_fn, queries, repeats):
     samples = []
     for _ in range(repeats):
         start = time.perf_counter()
         for query in queries:
-            search_function(query)
+            search_fn(query)
         elapsed = time.perf_counter() - start
         samples.append(elapsed / len(queries))
         
     # It multiplies by 1,000,000 to convert seconds to microseconds.
-    return (statistics.median(samples) * 1_000_000)
+    return statistics.median(samples) * 1_000_000
 
 # This function makes hash table, bloom filter, cuckoo filter, and quotient filter from a same dataset. 
 def build_structures(usernames):
     n = len(usernames)
     table = HashTable(n)
-    bloom = BloomFilter(n, target_fpr=TARGET_FPR)
-    cuckoo = CuckooFilter(n, target_fpr=TARGET_FPR)
-    quotient = QuotientFilter(n, target_fpr=TARGET_FPR)
+    bloom = BloomFilter(n, p=p)
+    cuckoo = CuckooFilter(n, p=p)
+    quotient = QuotientFilter(n, p=p)
 
     for username in usernames:
         table.hash_insert(username)
@@ -76,18 +66,18 @@ def build_structures(usernames):
     return table, bloom, cuckoo, quotient
 
 # This function calculates the false positive rate and false negatives. 
-def measure_filter_accuracy(search_function, usernames, count=FPR_QUERIES):
+def measure_filter_accuracy(search_fn, usernames, count=FPR_QUERIES):
     n = len(usernames)
-    false_positives = 0
+    fp = 0
     
     for i in range(count):
         query = f"user_{n + i:012d}"
-        if search_function(query):
-            false_positives += 1
-    false_positive_rate = false_positives / count
-    false_negatives = sum(not search_function(username)
+        if search_fn(query):
+            fp += 1
+    fpr = fp / count
+    fn = sum(not search_fn(username)
         for username in usernames)
-    return false_positive_rate, false_negatives
+    return fpr, fn
 
 # this block is to plot results of the methods. 
 def plot_results(rows):
@@ -98,9 +88,8 @@ def plot_results(rows):
 
     for method in methods:
         points = sorted((n, runtime) for n, name, runtime in rows if name == method)
-        x_values = [n for n, _ in points]
-        y_values = [runtime for _, runtime in points]
-        plt.plot(x_values, y_values, label=method)
+        x, y = zip(*points)
+        plt.plot(x, y, label=method)
         
     # logarithmic scale is used. 
     plt.xscale("log")
@@ -116,15 +105,6 @@ def plot_results(rows):
 # All methods over several dataset size. 
 # 1000 queries are used for each experiment.
 def benchmark(sizes, query_count=1000, repeats=5):
-    if not sizes:
-        raise ValueError("sizes must not be empty")
-    if any(n <= 0 for n in sizes):
-        raise ValueError("all dataset sizes must be positive")
-    if query_count <= 0:
-        raise ValueError("query_count must be positive")
-    if repeats <= 0:
-        raise ValueError("repeats must be positive")
-
     runtime_rows = []
     fpr_rows = []
     
@@ -134,40 +114,36 @@ def benchmark(sizes, query_count=1000, repeats=5):
 
     for n in sizes:
         print(f"\nTesting n={n:,}")
-        usernames = (largest_dataset[:n])
+        usernames = largest_dataset[:n]
         queries = make_queries(n, query_count)
-        (table, bloom, cuckoo, quotient) = build_structures(usernames)
+        table, bloom, cuckoo, quotient = build_structures(usernames)
 
         methods = [
-            ("Linear", lambda q: linear_search(usernames,q)),
-            ("Binary", lambda q: binary_search(usernames,q)),
-            ("Hash", lambda q: table.hash_search(q)),
-            ("Bloom", lambda q: bloom.bloom_search(q)),
-            ("Cuckoo", lambda q: cuckoo.cuckoo_search(q)),
-            ("Quotient", lambda q: quotient.quotient_search(q))
-        ]
-
-        for (name, search_function) in methods:
-            runtime = (median_time_per_query(search_function, queries, repeats))
-            runtime_rows.append((n, name, runtime))
-
-            print(f"{name:>8}: " f"{runtime:.3f} " "microseconds/query")
-            
-        # For probabilisti fileters
-        for name, structure in [
+            ("Linear", lambda q: linear_search(usernames, q)),
+            ("Binary", lambda q: binary_search(usernames, q)),
+            ("Hash", table.hash_search),
             ("Bloom", bloom.bloom_search),
             ("Cuckoo", cuckoo.cuckoo_search),
             ("Quotient", quotient.quotient_search)
-            ]:
-            fpr, false_negatives = measure_filter_accuracy(structure, usernames,)
-            fpr_rows.append((n, name, TARGET_FPR, fpr, false_negatives))
+        ]
 
-            # print(
-            #     f"{name:>8}: "
-            #     f"target FPR={TARGET_FPR:.2%}, "
-            #     f"measured FPR={fpr:.4%}, "
-            #     f"false negatives={false_negatives}"
-            # )
+        for name, search_fn in methods:
+            runtime = median_time_per_query(search_fn, queries, repeats)
+            runtime_rows.append((n, name, runtime))
+
+            print(f"{name:>8}: {runtime:.3f} microseconds/query")
+            
+        # For probabilisti fileters
+        for name, search_fn in methods[3:]: 
+            fpr, fn = measure_filter_accuracy(search_fn, usernames)
+            fpr_rows.append((n, name, p, fpr, fn))
+
+            print(
+                f"{name:>8}: "
+                f"target FPR={p:.2%}, "
+                f"measured FPR={fpr:.4%}, "
+                f"false negatives={fn}"
+            )
 
     # Save runtime results.
     with open("benchmark_results.csv", "w", newline="", encoding="utf-8") as file:
@@ -197,5 +173,5 @@ def benchmark(sizes, query_count=1000, repeats=5):
     print("lookup_runtime.png")
 
 if __name__ == "__main__":
-    SIZES = [1_000, 2_000, 5_000, 10_000, 20_000, 50_000, 100_000, 200_000, 500_000, 1_000_000, 2_000_000, 5_000_000, 10_000_000]
-    benchmark(SIZES)
+    sizes = [1_000, 2_000, 5_000, 10_000, 20_000, 50_000, 100_000, 200_000, 500_000, 1_000_000, 2_000_000, 5_000_000, 10_000_000]
+    benchmark(sizes)
