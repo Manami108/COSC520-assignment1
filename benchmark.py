@@ -163,17 +163,17 @@ def benchmark(sizes, query_count=1000, repeats=5):
 
             print(f"{name:>8}: {runtime:.3f} microseconds/query")
             
-        # For probabilisti fileters
-        for name, search_fn in methods[3:]: 
-            fpr, fn = measure_filter_accuracy(search_fn, usernames)
-            fpr_rows.append((n, name, p, fpr, fn))
+        # # For probabilisti fileters
+        # for name, search_fn in methods[3:]: 
+        #     fpr, fn = measure_filter_accuracy(search_fn, usernames)
+        #     fpr_rows.append((n, name, p, fpr, fn))
 
-            print(
-                f"{name:>8}: "
-                f"target FPR={p:.2%}, "
-                f"measured FPR={fpr:.4%}, "
-                f"false negatives={fn}"
-            )
+        #     print(
+        #         f"{name:>8}: "
+        #         f"target FPR={p:.2%}, "
+        #         f"measured FPR={fpr:.4%}, "
+        #         f"false negatives={fn}"
+        #     )
 
     # Save runtime results.
     with open("benchmark_results.csv", "w", newline="", encoding="utf-8") as file:
