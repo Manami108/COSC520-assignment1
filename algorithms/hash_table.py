@@ -1,8 +1,5 @@
 from utils.hash_functions import fnv1a64
 
-# Input: a list of usernames and a target username to search for
-# Output: True if the target username is found in the list, False otherwise
-
 class HashTable:
     def __init__(self, expected_items):
         # Input: expected_items is the number of items that will be stored in the hash table
@@ -55,7 +52,8 @@ class HashTable:
     def hash_search(self, key):
         # Input: a username
         # Output: True if the username exists in the hash table, False otherwise
-        # it moves through the following slots in the same order as the insertion procedure.
+        # The search is begun at the hashed index and checks subsequent slots using linear probing.
+        
         index = self.hash_function(key)
 
         for _ in range(self.capacity):

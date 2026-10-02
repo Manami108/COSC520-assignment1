@@ -13,7 +13,7 @@ class CuckooFilter:
         #        target_fpr is the desired false positive rate
         #        target_load is the desired load factor for the filter
         # Output: a new Cuckoo filter
-        # To find the target value, this function goes through the list from the beginning and compares each element with the target. 
+        # The constructor calculates the fingerprint size and required number of buckets.
         
         if expected_items <= 0:
             raise ValueError("expected_items must be positive")
@@ -72,8 +72,8 @@ class CuckooFilter:
     def cuckoo_search(self, key):
         # Input: a username
         # Output: True if the username is found in either possible bucket, False otherwise
-        # Only the two candidate bucket locations are checked during lookup because the fingerprint can only be in one of them.
-        
+        # Only the two candidate bucket locations are checked during lookup.
+
         fingerprint, index1, index2 = self._locate(key)
         return (fingerprint in self.buckets[index1]
             or fingerprint in self.buckets[index2])
@@ -116,8 +116,8 @@ class CuckooFilter:
         # Input: a username
         # Output: True if the username is deleted, False if it is not found
         # The username is converted into a fingerprint, and both candidate buckets are searched.
-        # If a matching fingerprint is found, it is removed from the appropriate bucket.
-
+        # If a matching fingerprint is found, it is removed from the bucket.
+        
         fingerprint, index1, index2 = (self._locate(key))
         if fingerprint in self.buckets[index1]:
             self.buckets[index1].remove(fingerprint)

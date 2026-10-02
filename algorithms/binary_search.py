@@ -2,7 +2,6 @@
 # Output: True if the target is found in the list, False otherwise  
 # This function starts by checking the list from the middle. 
 # Depending on whether the target is smaller or larger, it continues searching in only one half of the remaining elements. 
-
 def binary_search(values, target):
     low = 0
     high = len(values)-1
@@ -21,7 +20,6 @@ def binary_search(values, target):
 # Output: True if the value is inserted, False if it already exists
 # This function uses binary search to find the correct insertion position.
 # The value is inserted at that position so that the list remains sorted.
-
 def binary_insert(values, target):
     low = 0
     high = len(values) - 1
@@ -41,7 +39,6 @@ def binary_insert(values, target):
 # Output: True if the value is deleted, False if it does not exist
 # This function uses binary search to find the target.
 # If the target is found, it is removed while the remaining list stays sorted.
-
 def binary_delete(values, target):
     low = 0
     high = len(values) - 1

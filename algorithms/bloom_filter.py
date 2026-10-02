@@ -43,8 +43,8 @@ class BloomFilter:
         # Input: a username
         # Output: True if the username may be present, False otherwise
         # If at least one required bit is 0, the key is definitely not present.
-        # If all of them are set to 1, the key is present, with a possibility of a false positive.
-
+        # If all required bits are 1, the key may be present, but a false positive is possible.
+        
         for position in self._hashes(key):
             if not self.bit_array[position >> 3] & (1 << (position & 7)):
                 return False
